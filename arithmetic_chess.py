@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 import re
+from os import system
+# ensures ansi chars work on windows cmd line
+system("")
 
 WIDTH = 8
 HEIGHT = 8
