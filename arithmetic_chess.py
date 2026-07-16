@@ -4,6 +4,9 @@ from os import system
 # ensures ansi chars work on windows cmd line
 system("")
 
+VERSION_NUMBER = 0.4
+TITLE = "Arithmetic Chess v" + str(VERSION_NUMBER)
+
 WIDTH = 8
 HEIGHT = 8
 FLAG = 2**63 - 1
@@ -24,7 +27,6 @@ colour_dark = "\x1b[90m"
 
 player0 = "Alice"
 player1 = "Bob"
-
 
 board = [[0 for _ in range(WIDTH)] for _ in range(HEIGHT)]
 
@@ -55,7 +57,6 @@ def init_board(width : int, height : int, ic : list[tuple[int, int, int]]) -> li
 
 def create_board(width : int, height : int) -> list[list[int]]:
 	return [[0 for _ in range(width)] for _ in range(height)]
-
 
 def format_cell(xpos : int, ypos : int, board : list[list[int]],
 				valid_moves : list[tuple[int, int]]) -> str:
@@ -132,7 +133,6 @@ def try_move(board : list[list[int]], sx : int, sy : int,
 	# 	print(f"Error: {e}.")
 	# 	return FAILURE
 
-
 def is_square(param: int) -> {0, 1}:
 	if param >= 0 and int(param ** (1/2)) ** 2 == param:
 		return 1
@@ -147,7 +147,6 @@ def all_valid_displacements(param: int) -> list[tuple[int, int]]:
 			if (param != x**2):
 				l.append((x, int((param - x**2) ** (1/2))))
 	return l
-
 
 def all_valid_moves(bsize: tuple[int, int], pos: tuple[int, int], param: int) -> list[tuple[int, int]]:
 	bparam = bsize[0] ** 2 + bsize[1] ** 2
@@ -271,7 +270,7 @@ lookup = [icA, icB, icC, icD]
 def main():
 	debug = 1
 	clear_screen()
-	print("Arithmetic Chess v0.4\n")
+	print(TITLE + "\n")
 	print("\n")
 
 	print("Rules: ")
@@ -309,7 +308,7 @@ def main():
 
 
 	clear_screen()
-	print("Arithmetic Chess v0.4\n\n")
+	print(TITLE + "\n\n")
 	# Load initial conditions by hand here
 	board = init_board(8, 8, icB[2])
 	if debug and s:
@@ -388,7 +387,7 @@ def main():
 
 		x = board[sy][sx]
 		clear_screen()
-		print("Arithmetic Chess v0.4\n\n")
+		print(TITLE + "\n\n")
 		print_board(board, all_valid_moves((boardx, boardy), (sx, sy), abs(x)))
 
 		str1 = ""
@@ -459,7 +458,7 @@ def main():
 
 
 		clear_screen()
-		print("Arithmetic Chess v0.4\n\n")
+		print(TITLE + "\n\n")
 
 
 		current_sign *= -1
