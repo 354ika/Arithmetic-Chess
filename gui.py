@@ -2,35 +2,18 @@ import arithmetic_chess as ArithChessLogic
 from tkinter import *
 
 class GameBoard:
-    # TO-DO, use game logic to determine what each tile actually contains
 
     def __init__(self):
         self.board_tiles = []
         self.valid_moves = []
         self.board = []
-        
-    def get_tile_at_coord(self, x, y):
-        tile_idx = x + (y * ArithChessLogic.WIDTH)
-        tile = self.board_tiles[tile_idx]
-        # print("coord:" + str(tile.coords))
-        return tile
-        
-    def handle_selected_tiles(self):
-        selected_tiles = []
-        for t in self.board_tiles:
-            if t.selected:
-                selected_tiles.append(t)
-        number_of_selected_tiles = len(selected_tiles)
-        print(f"Number of selected tiles: {number_of_selected_tiles}")
-        if(number_of_selected_tiles == 1):
-            self.highlight_valid_moves(selected_tiles[0])
-            return
-        elif(number_of_selected_tiles > 1):
-            self.try_move(selected_tiles[0], selected_tiles[1])
-        self.deselect_all_tiles()
-                
+        self.source_tile = None
+        self.dest_tile = None
+        self.current_turn = 1
+             
     def init_board(self):
-        self.board = ArithChessLogic.init_board(ArithChessLogic.WIDTH, ArithChessLogic.HEIGHT, ArithChessLogic.icB[2])
+        self.destroy_tiles()
+        self.board = ArithChessLogic.init_board(ArithChessLogic.WIDTH, ArithChessLogic.HEIGHT, ArithChessLogic.icD[2])
         for x in range(ArithChessLogic.WIDTH):
             for y in range(ArithChessLogic.HEIGHT):
                 new_tile = Tile(x, y)
@@ -43,8 +26,10 @@ class GameBoard:
         for tile in self.board_tiles:
             tile.format()
           
-    def deselect_all_tiles(self):
+    def deselect_tiles(self):
         self.valid_moves = []
+        self.source_tile = None
+        self.dest_tile = None
         for t in self.board_tiles:
             t.selected = False
             t.format()
@@ -59,10 +44,22 @@ class GameBoard:
         tx = dest_tile.coords[X] 
         ty = dest_tile.coords[Y]
         print(f"Trying: {sy}, {sx} -> {ty}, {tx}")
-        success = ArithChessLogic.try_move(self.board, sy, sx, ty - sy, tx - sx, 1)
+        success = ArithChessLogic.try_move(self.board, sy, sx, ty - sy, tx - sx, self.current_turn)
         if success == ArithChessLogic.SUCCESS:
             self.load_board_state(self.board, ())
-            ArithChessLogic.print_board(self.board, [])
+            self.deselect_tiles()
+            self.current_turn *= -1
+            if(self.current_turn == 1):
+                update_player_action_label("Your turn, Player 1", palette.player1)
+            else:
+                update_player_action_label("Your turn, Player 2", palette.player2)
+        elif success == ArithChessLogic.GAME_OVER:
+            if(self.current_turn == 1):
+                update_player_action_label("Player 1 Wins!", palette.player1)
+            else:
+                update_player_action_label("Player 2 Wins!", palette.player2)
+        elif success == ArithChessLogic.FAILURE:
+            update_player_action_label(msg, palette.error)
         print(f"Move success: {success}")
         
     def highlight_valid_moves(self, tile):
@@ -118,16 +115,22 @@ class Tile(Button):
         self.configure(background = colour)
     
     def on_click(self):
-        self.selected = not self.selected
-        self.update_background_colour()
-        game_board.handle_selected_tiles()
+        if game_board.source_tile == self:
+            game_board.deselect_tiles()
+        elif game_board.source_tile == None:
+            game_board.source_tile = self
+            self.selected = not self.selected
+            game_board.highlight_valid_moves(game_board.source_tile)
+        elif game_board.dest_tile == None:
+            game_board.dest_tile = self
+            self.selected = not self.selected
+            game_board.try_move(game_board.source_tile, game_board.dest_tile)
+        else:
+            game_board.deselect_tiles()
         
     def format(self):
         value = game_board.board[self.coords[X]][self.coords[Y]]
-        
-        ### defaults
         self.update_background_colour()
-        # tile_text = f"{self.coords[X]}, {self.coords[Y]}"
         tile_text = ""
         text_colour = palette.text
         
@@ -172,7 +175,8 @@ def set_info_popup():
                     justify = "left"
                     )
     CREDITS = ("Game Logic/Design: Hong Fulin\n" + 
-            "GUI: June Wilson"
+            "GUI: June Wilson\n\n" +
+            "Press R to view the rules at any time."
             )
     credits_title = Label(info_frame, text = "Credits", foreground = palette.text, background = palette.tile1, font = heading_font)
     credits_text = Label(info_frame, text = CREDITS, 
@@ -240,6 +244,6 @@ if __name__ == "__main__":
     board_frame.grid(row = 1, column = 0, padx = WIN_WIDTH / 4)
     player_action_label.grid(row = 2, column = 0)
     set_info_popup()
-    toggle_show_info(None)
+    set_info_popup_visibility(True)
     root.mainloop()
     
