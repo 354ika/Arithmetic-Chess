@@ -30,6 +30,22 @@ player1 = "Bob"
 
 board = [[0 for _ in range(WIDTH)] for _ in range(HEIGHT)]
 
+class MoveStatus():
+    def __init__(self, state, message):
+        self.state = state
+        self.message = message
+        
+MOVE_WAS_SUCCESS = MoveStatus(SUCCESS, "Move was successful")
+SOURCE_OUT_OF_BOUNDS = MoveStatus(FAILURE, "Source square is out of bounds.")
+DEST_OUT_OF_BOUNDS = MoveStatus(FAILURE, "Destination square is out of bounds.")
+SOURCE_EMPTY = MoveStatus(FAILURE, "Source square is empty")
+TRY_MOVE_ENEMY_PIECE = MoveStatus(FAILURE, "Cannot move enemy piece")
+TRY_MOVE_FLAG = MoveStatus(FAILURE, "Flag cannot be moved")
+MOVE_CONSTRAINT_NOT_MET = MoveStatus(FAILURE, "Euclidean movement constraint not satisfied (Invalid Move).")
+CAPTURED_OWN_FLAG = MoveStatus(FAILURE, "You cannot capture your own flag")
+MOVE_CAUSED_GAME_OVER = MoveStatus(GAME_OVER, "Flag piece was captured")
+MOVE_CAUSED_DRAW = MoveStatus(GAME_OVER, "Neither player can move")
+
 def print_board(board : list[list[int]], valid_moves : list[tuple[int, int]]) -> None:
 	for y in reversed(range(len(board))):
 		row = board[y]
@@ -85,46 +101,39 @@ def clear_screen():
 
 def try_move(board : list[list[int]], sx : int, sy : int,
 									  dx : int, dy : int, 
-									  current_turn : int) -> int:
+									  current_turn : int) -> MoveStatus:
 	
 	if (sy < 0 or sy >= len(board) or 
 		sx < 0 or sx >= len(board[0])):
-		print("Source square is out of bounds.")
-		return FAILURE
+		return SOURCE_OUT_OF_BOUNDS
 
 	x = board[sy][sx]
 
 	if (sy + dy < 0 or sy + dy >= len(board) or 
 		sx + dx < 0 or sx + dx >= len(board[0])):
-		print("Destination square is out of bounds.")
-		return FAILURE
+		return DEST_OUT_OF_BOUNDS
 
 	y = board[sy + dy][sx + dx]
 
 	if x == 0:
-		print("Error: Source square is empty.")
-		return FAILURE
+		return SOURCE_EMPTY
 	elif current_turn * x < 0:
-		print("Error: Cannot move enemy piece.")
-		return FAILURE
+		return TRY_MOVE_ENEMY_PIECE
 	elif abs(x) == FLAG:
-		print("Flags cannot move (Euclidean movement constraint not satisfied.)")
-		return FAILURE
+		return TRY_MOVE_FLAG
 	elif (dx*dx + dy*dy != abs(x)):
-		print("Error: Euclidean movement constraint not satisfied.")
-		return FAILURE
+		return MOVE_CONSTRAINT_NOT_MET
 
 	board[sy][sx] = 0
 	if y == -FLAG * current_turn:
 		# print("You win!")
 		board[sy + dy][sx + dx] = x
-		return GAME_OVER
+		return MOVE_CAUSED_GAME_OVER
 	elif y == FLAG * current_turn:
-		print("Losing by capturing your own flag is not allowed.")
-		return FAILURE
+		return CAPTURED_OWN_FLAG
 
 	board[sy + dy][sx + dx] = x + y
-	return SUCCESS
+	return MOVE_WAS_SUCCESS
 
 		
 
@@ -342,7 +351,7 @@ def main():
 					player_1_can_move = 1
 
 		if player_0_can_move == 0 and player_1_can_move == 0:
-			print(colour_yellow + "Neither player can move, the game is drawn!\n\n" + colour_reset)
+			print(colour_yellow + MOVE_CAUSED_DRAW.message + "\n\n" + colour_reset)
 			print_board(board)
 			break
 
@@ -372,17 +381,17 @@ def main():
 		if (sy < 0 or sy >= len(board) or 
 			sx < 0 or sx >= len(board[0])):
 			clear_screen()
-			print(colour_error + "Source square is out of bounds.\n\n" + colour_reset)
+			print(colour_error + SOURCE_OUT_OF_BOUNDS.message + "\n\n" + colour_reset)
 			continue
 
 		if board[sy][sx] == 0:
 			clear_screen()
-			print(colour_error + "Error: Source square is empty.\n\n" + colour_reset)
+			print(colour_error + SOURCE_EMPTY.message + "\n\n" + colour_reset)
 			continue
 
 		if board[sy][sx] * current_sign < 0:
 			clear_screen()
-			print(colour_error + "Error: Cannot move enemy piece.\n\n" + colour_reset)
+			print(colour_error + TRY_MOVE_ENEMY_PIECE.message +                                                                                               "\n\n" + colour_reset)
 			continue
 
 		x = board[sy][sx]
@@ -412,26 +421,26 @@ def main():
 		if (ty < 0 or ty >= len(board) or 
 			tx < 0 or tx >= len(board[0])):
 			clear_screen()
-			print(colour_error + "Error: Destination square is out of bounds.\n\n" + colour_reset)
+			print(colour_error + DEST_OUT_OF_BOUNDS.message + "\n\n" + colour_reset)
 			continue
 
 		if ((ty - sy) * (ty - sy) + (tx - sx) * (tx - sx)) != abs(x):
 			clear_screen()
-			print(colour_error + f"Error: Euclidean movement constraint is not satisfied. \n (({tx - sx})^2 + ({ty - sy})^2 = {(tx - sx)**2 + (ty - sy)**2}, not {abs(x)})\n" + colour_reset)
+			print(colour_error + f"{MOVE_CONSTRAINT_NOT_MET.message}. \n (({tx - sx})^2 + ({ty - sy})^2 = {(tx - sx)**2 + (ty - sy)**2}, not {abs(x)})\n" + colour_reset)
 			continue
 
 		y = board[ty][tx]
 
 		if y == FLAG * current_sign:
 			clear_screen()
-			print(colour_error + "Error: Capturing your own flag is not allowed.\n\n" + colour_reset)
+			print(colour_error + CAPTURED_OWN_FLAG + "\n\n" + colour_reset)
 			continue
 
 
 		#print(f"sx: {sx}, sy: {sy}, dx: {dx}, dy: {dy}")
 		result = try_move(board, sx, sy, tx-sx, ty-sy, current_sign)
 
-		if result == GAME_OVER:
+		if result.state == GAME_OVER:
 			print_board(board, [])
 			if current_sign == 1:
 				print(f"{colour_cyan}{player0}{colour_reset} wins!")
@@ -452,10 +461,9 @@ def main():
 			else:
 				break
 			
-		elif result == FAILURE:
+		elif result.state == FAILURE:
+			print(result.message)
 			continue
-
-
 
 		clear_screen()
 		print(TITLE + "\n\n")

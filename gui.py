@@ -36,7 +36,7 @@ class GameBoard:
                 
     def destroy_tiles(self):
         for tile in self.board_tiles:
-            tile.destroy()
+            tile.destroy()         
      
     def try_move(self, start_tile, dest_tile):
         sx = start_tile.coords[X]
@@ -44,23 +44,25 @@ class GameBoard:
         tx = dest_tile.coords[X] 
         ty = dest_tile.coords[Y]
         print(f"Trying: {sy}, {sx} -> {ty}, {tx}")
-        success = ArithChessLogic.try_move(self.board, sy, sx, ty - sy, tx - sx, self.current_turn)
-        if success == ArithChessLogic.SUCCESS:
+        move_status = ArithChessLogic.try_move(self.board, sy, sx, ty - sy, tx - sx, self.current_turn)
+        if move_status.state == ArithChessLogic.SUCCESS:
             self.load_board_state(self.board, ())
-            self.deselect_tiles()
             self.current_turn *= -1
             if(self.current_turn == 1):
-                update_player_action_label("Your turn, Player 1", palette.player1)
+                update_label(player_action_label, player_action_text, "Your turn, Player 1", palette.player1)
             else:
-                update_player_action_label("Your turn, Player 2", palette.player2)
-        elif success == ArithChessLogic.GAME_OVER:
+                update_label(player_action_label, player_action_text, "Your turn, Player 2", palette.player2)
+            update_label(move_error_label, move_error_text, "", palette.error)
+        elif move_status.state == ArithChessLogic.GAME_OVER:
             if(self.current_turn == 1):
-                update_player_action_label("Player 1 Wins!", palette.player1)
+                update_label(player_action_label, player_action_text, "Player 1 Wins!", palette.player1)
             else:
-                update_player_action_label("Player 2 Wins!", palette.player2)
-        elif success == ArithChessLogic.FAILURE:
-            update_player_action_label(msg, palette.error)
-        print(f"Move success: {success}")
+                update_label(player_action_label, player_action_text, "Player 2 Wins!", palette.player2)
+            update_label(move_error_label, move_error_text, "", palette.error)
+        elif move_status.state == ArithChessLogic.FAILURE:
+            update_label(move_error_label, move_error_text, move_status.message, palette.error)
+        self.deselect_tiles()
+        print(f"Move success: {move_status.message}")
         
     def highlight_valid_moves(self, tile):
         try:
@@ -91,10 +93,10 @@ class Tile(Button):
                         image = pixel,
                         activebackground = palette.selected,
                         background = Tile.determine_tile_bg_colour(x, y),
-                        border = 2,
+                        border = 1,
                         font = body_font,
                         compound = 'c',
-                        width = int(Tile.TILE_SIZE * 1.05),
+                        width = Tile.TILE_SIZE,
                         height = Tile.TILE_SIZE,
                         command = self.on_click
                         )
@@ -156,9 +158,9 @@ def set_title_label():
     title_label = Label(root, text = ArithChessLogic.TITLE, font = heading_font, background = palette.background, foreground = palette.text) 
     title_label.grid(row = 0, column = 0, sticky = "n", pady = PADDING)
     
-def update_player_action_label(text, colour):
-    player_action_text.set(text)
-    player_action_label.configure(foreground = colour) 
+def update_label(label, textvar, text, colour):
+    textvar.set(text)
+    label.configure(foreground = colour) 
     
 def set_info_popup():
     RULES = ("- Player 1 controls positive numbers\n" +
@@ -226,8 +228,10 @@ pixel = PhotoImage(width = 1, height = 1)
 
 game_board = GameBoard()
 board_frame = Frame(root, bg = palette.tile1, bd = 3)
-player_action_text = StringVar(root, "placeholder")
-player_action_label = Label(root, textvariable = player_action_text, font = body_font, background = palette.background)
+player_action_text = StringVar(root, "Your turn, Player 1")
+player_action_label = Label(root, textvariable = player_action_text, font = body_font, background = palette.background, foreground = palette.player1)
+move_error_text = StringVar(root, "")
+move_error_label = Label(root, textvariable = move_error_text, font = body_font, background = palette.background, foreground = palette.error)
 
 info_frame = Frame(root, bd = 3, background = palette.tile1)
 show_info = True
@@ -243,6 +247,7 @@ if __name__ == "__main__":
     game_board.init_board()
     board_frame.grid(row = 1, column = 0, padx = WIN_WIDTH / 4)
     player_action_label.grid(row = 2, column = 0)
+    move_error_label.grid(row = 3, column = 0)
     set_info_popup()
     set_info_popup_visibility(True)
     root.mainloop()
