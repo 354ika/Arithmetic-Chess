@@ -4,7 +4,7 @@ from os import system
 # ensures ansi chars work on windows cmd line
 system("")
 
-VERSION_NUMBER = 0.4
+VERSION_NUMBER = 0.5
 TITLE = "Arithmetic Chess v" + str(VERSION_NUMBER)
 
 WIDTH = 8
@@ -36,6 +36,7 @@ class MoveStatus():
         self.message = message
         
 MOVE_WAS_SUCCESS = MoveStatus(SUCCESS, "Move was successful")
+PIECE_CAPTURED = MoveStatus(SUCCESS, "capture")
 SOURCE_OUT_OF_BOUNDS = MoveStatus(FAILURE, "Source square is out of bounds.")
 DEST_OUT_OF_BOUNDS = MoveStatus(FAILURE, "Destination square is out of bounds.")
 SOURCE_EMPTY = MoveStatus(FAILURE, "Source square is empty")
@@ -133,7 +134,7 @@ def try_move(board : list[list[int]], sx : int, sy : int,
 		return CAPTURED_OWN_FLAG
 
 	board[sy + dy][sx + dx] = x + y
-	return MOVE_WAS_SUCCESS
+	return PIECE_CAPTURED if y > 0 else MOVE_WAS_SUCCESS
 
 		
 

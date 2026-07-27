@@ -1,5 +1,12 @@
 import arithmetic_chess as ArithChessLogic
+from os import system
 from tkinter import *
+try:
+    from pygame import mixer
+except:
+    print("Required library pygame not found, installing pygame-ce")
+    system("pip install pygame-ce")
+    from pygame import mixer
 
 class GameBoard:
 
@@ -10,15 +17,21 @@ class GameBoard:
         self.source_tile = None
         self.dest_tile = None
         self.current_turn = 1
+        self.enable_move = False
              
-    def init_board(self):
+    def init_board(self, ic = ArithChessLogic.icB[2]):
+        reset_board_sfx.play()
+        self.deselect_tiles
         self.destroy_tiles()
-        self.board = ArithChessLogic.init_board(ArithChessLogic.WIDTH, ArithChessLogic.HEIGHT, ArithChessLogic.icD[2])
+        self.board = ArithChessLogic.init_board(ArithChessLogic.WIDTH, ArithChessLogic.HEIGHT, ic)
         for x in range(ArithChessLogic.WIDTH):
             for y in range(ArithChessLogic.HEIGHT):
                 new_tile = Tile(x, y)
                 new_tile.format()
-                self.board_tiles.append(new_tile)            
+                self.board_tiles.append(new_tile)
+        self.current_turn = 1    
+        self.enable_move = True
+        self.update_turn_label(False)        
                 
     def load_board_state(self, board : list[list[int]], valid_moves : list[tuple[int, int]]):
         self.board = board
@@ -36,33 +49,47 @@ class GameBoard:
                 
     def destroy_tiles(self):
         for tile in self.board_tiles:
-            tile.destroy()         
+            tile.destroy()     
+        self.board_tiles = []    
      
     def try_move(self, start_tile, dest_tile):
+        if not self.enable_move:
+            self.deselect_tiles()
+            return
         sx = start_tile.coords[X]
         sy = start_tile.coords[Y]
         tx = dest_tile.coords[X] 
         ty = dest_tile.coords[Y]
-        print(f"Trying: {sy}, {sx} -> {ty}, {tx}")
+        #print(f"Trying: {sy}, {sx} -> {ty}, {tx}")
         move_status = ArithChessLogic.try_move(self.board, sy, sx, ty - sy, tx - sx, self.current_turn)
         if move_status.state == ArithChessLogic.SUCCESS:
             self.load_board_state(self.board, ())
             self.current_turn *= -1
-            if(self.current_turn == 1):
-                update_label(player_action_label, player_action_text, "Your turn, Player 1", palette.player1)
-            else:
-                update_label(player_action_label, player_action_text, "Your turn, Player 2", palette.player2)
-            update_label(move_error_label, move_error_text, "", palette.error)
+            self.update_turn_label(game_over = False)
+            piece_captured_sfx.play() if move_status == ArithChessLogic.PIECE_CAPTURED else piece_placed_sfx.play()
         elif move_status.state == ArithChessLogic.GAME_OVER:
-            if(self.current_turn == 1):
-                update_label(player_action_label, player_action_text, "Player 1 Wins!", palette.player1)
-            else:
-                update_label(player_action_label, player_action_text, "Player 2 Wins!", palette.player2)
-            update_label(move_error_label, move_error_text, "", palette.error)
+            self.deselect_tiles()
+            self.load_board_state(self.board, ())
+            self.update_turn_label(game_over = True)
+            game_over_sfx.play()
+            self.enable_move = False
         elif move_status.state == ArithChessLogic.FAILURE:
             update_label(move_error_label, move_error_text, move_status.message, palette.error)
+            invalid_move_sfx.play()
         self.deselect_tiles()
-        print(f"Move success: {move_status.message}")
+      
+    def update_turn_label(self, game_over):
+        if(self.current_turn == 1):
+            update_label(player_action_label, 
+                        player_action_text, 
+                        "Player 1 Wins" if game_over else "Your turn, Player 1", 
+                        palette.player1)
+        else:
+            update_label(player_action_label, 
+                        player_action_text, 
+                        "Player 2 Wins" if game_over else "Your turn, Player 2", 
+                        palette.player2)
+        update_label(move_error_label, move_error_text, "", palette.error)
         
     def highlight_valid_moves(self, tile):
         try:
@@ -70,11 +97,11 @@ class GameBoard:
         except:
             return
         moves = ArithChessLogic.all_valid_moves((ArithChessLogic.WIDTH, ArithChessLogic.HEIGHT), tile.coords, value)
-        print(f"Moves number: {len(moves)}")
+        #print(f"Moves number: {len(moves)}")
         self.load_board_state(self.board, moves)
             
 class Palette:
-    def __init__(self, text, background, tile1, tile2, player1, player2, highlight, selected, error):
+    def __init__(self, text, background, tile1, tile2, player1, player2, highlight, selected, error, panel_back, option_button):
             self.text = text
             self.background = background
             self.tile1 = tile1
@@ -84,6 +111,8 @@ class Palette:
             self.highlight = highlight
             self.selected = selected
             self.error = error
+            self.panel_back = panel_back
+            self.option_button = option_button
 
 class Tile(Button):
     TILE_SIZE = 56
@@ -93,7 +122,7 @@ class Tile(Button):
                         image = pixel,
                         activebackground = palette.selected,
                         background = Tile.determine_tile_bg_colour(x, y),
-                        border = 1,
+                        border = 3,
                         font = body_font,
                         compound = 'c',
                         width = Tile.TILE_SIZE,
@@ -132,7 +161,8 @@ class Tile(Button):
         
     def format(self):
         value = game_board.board[self.coords[X]][self.coords[Y]]
-        self.update_background_colour()
+        if(game_board.enable_move):
+            self.update_background_colour()
         tile_text = ""
         text_colour = palette.text
         
@@ -149,10 +179,29 @@ class Tile(Button):
             text_colour = palette.player2
             
         self.configure(
-
             fg = text_colour,
             text = tile_text
         )   
+  
+class OptionButton(Button):
+    BUTTON_WIDTH = 100
+    BUTTON_HEIGHT = 30
+    
+    def __init__(self, x, text, command):
+        super().__init__(master = option_buttons, text = text,
+                        image = pixel,
+                        activebackground = palette.selected,
+                        background = palette.option_button,
+                        border = 1,
+                        font = body_font,
+                        compound = 'c',
+                        width = OptionButton.BUTTON_WIDTH,
+                        height = OptionButton.BUTTON_HEIGHT,
+                        padx = 8,
+                        command = command
+                        )
+        self.grid(row = 0, column = x, padx = 16)
+
   
 def set_title_label():
     title_label = Label(root, text = ArithChessLogic.TITLE, font = heading_font, background = palette.background, foreground = palette.text) 
@@ -169,23 +218,25 @@ def set_info_popup():
         "- A piece can move sqrt(n) spaces\n" +
         "- When two pieces collide, their values sum"
         )
-    rules_title = Label(info_frame, text = "Rules", foreground = palette.text, background = palette.tile1, font = heading_font)
+    rules_title = Label(info_frame, text = "Rules", foreground = palette.text, background = palette.panel_back, font = heading_font)
     rules_text = Label(info_frame, text = RULES, 
                     foreground = palette.text, 
-                    background = palette.tile1, 
+                    background = palette.panel_back, 
                     font = body_font,
-                    justify = "left"
+                    justify = "left",
+                    pady = PADDING / 2
                     )
     CREDITS = ("Game Logic/Design: Hong Fulin\n" + 
             "GUI: June Wilson\n\n" +
             "Press R to view the rules at any time."
             )
-    credits_title = Label(info_frame, text = "Credits", foreground = palette.text, background = palette.tile1, font = heading_font)
+    credits_title = Label(info_frame, text = "Credits", foreground = palette.text, background = palette.panel_back, font = heading_font)
     credits_text = Label(info_frame, text = CREDITS, 
                         foreground = palette.text, 
-                        background = palette.tile1, 
+                        background = palette.panel_back, 
                         font = body_font,
-                        justify = "left"
+                        justify = "left",
+                        pady = PADDING / 2
                         )
 
     rules_title.pack()
@@ -200,9 +251,17 @@ def toggle_show_info(event):
     global show_info
     show_info = not show_info
     set_info_popup_visibility(show_info)
-    print("r was pressed, " + str(show_info))
+    #print("r was pressed, " + str(show_info))
                        
-LIGHT = Palette(
+
+mixer.init()
+piece_captured_sfx = mixer.Sound(r"assets\sfx\piece_captured.wav")
+piece_placed_sfx = mixer.Sound(r"assets\sfx\piece_placed.wav")
+invalid_move_sfx = mixer.Sound(r"assets\sfx\invalid_move.wav")
+reset_board_sfx = mixer.Sound(r"assets\sfx\reset_board.wav")
+game_over_sfx = mixer.Sound(r"assets\sfx\game_over.wav")
+
+palette = Palette(
     text = "black", 
     background = "ivory2",
     tile1 = "white",
@@ -211,12 +270,13 @@ LIGHT = Palette(
     player2 = "red",
     highlight = "green2",
     selected = "magenta",
-    error = "red3"
+    error = "red3",
+    panel_back = "white",
+    option_button = "lightsteelblue3"
     )
 
 X = 0
 Y = 1
-palette = LIGHT
 root = Tk()
 tile_px = 16
 WIN_WIDTH = 1080
@@ -233,8 +293,12 @@ player_action_label = Label(root, textvariable = player_action_text, font = body
 move_error_text = StringVar(root, "")
 move_error_label = Label(root, textvariable = move_error_text, font = body_font, background = palette.background, foreground = palette.error)
 
-info_frame = Frame(root, bd = 3, background = palette.tile1)
+info_frame = Frame(root, bd = 3, background = palette.panel_back)
 show_info = True
+
+option_buttons = Frame(root, bd = 3, background = palette.background)
+show_rules_button = OptionButton(0, "Show Rules", command = lambda: toggle_show_info(None))
+reset_board_button = OptionButton(1, "Reset Board",  command = game_board.init_board)
 
 if __name__ == "__main__":
     root.configure(bg = palette.background)
@@ -245,9 +309,12 @@ if __name__ == "__main__":
     root.bind('R', toggle_show_info)
     set_title_label()
     game_board.init_board()
+    
     board_frame.grid(row = 1, column = 0, padx = WIN_WIDTH / 4)
     player_action_label.grid(row = 2, column = 0)
     move_error_label.grid(row = 3, column = 0)
+    option_buttons.grid(row = 4, column = 0)
+
     set_info_popup()
     set_info_popup_visibility(True)
     root.mainloop()
