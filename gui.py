@@ -68,18 +68,22 @@ class GameBoard:
             self.update_turn_label(game_over = False)
             piece_captured_sfx.play() if move_status == ArithChessLogic.PIECE_CAPTURED else piece_placed_sfx.play()
         elif move_status.state == ArithChessLogic.GAME_OVER:
-            self.deselect_tiles()
-            self.load_board_state(self.board, ())
-            self.update_turn_label(game_over = True)
-            game_over_sfx.play()
-            self.enable_move = False
+            self.on_game_over()
         elif move_status.state == ArithChessLogic.FAILURE:
             update_label(move_error_label, move_error_text, move_status.message, palette.error)
             invalid_move_sfx.play()
         self.deselect_tiles()
+        self.check_if_valid_moves_possible()
       
+    def on_game_over(self):
+        self.deselect_tiles()
+        self.load_board_state(self.board, ())
+        self.update_turn_label(game_over = True)
+        game_over_sfx.play()
+        self.enable_move = False
+    
     def update_turn_label(self, game_over):
-        if(self.current_turn == 1):
+        if self.current_turn == 1:
             update_label(player_action_label, 
                         player_action_text, 
                         "Player 1 Wins" if game_over else "Your turn, Player 1", 
@@ -99,6 +103,34 @@ class GameBoard:
         moves = ArithChessLogic.all_valid_moves((ArithChessLogic.WIDTH, ArithChessLogic.HEIGHT), tile.coords, value)
         #print(f"Moves number: {len(moves)}")
         self.load_board_state(self.board, moves)
+     
+    def get_all_player_tiles(self):
+        p_tiles = []
+        for tile in self.board_tiles:
+            if not check_int(tile['text']):
+                continue
+            value = int(tile['text'])
+            if (self.current_turn <= -1 and value <= -1):
+                p_tiles.append(tile)
+                continue
+            elif (self.current_turn >= 1 and value >= 1):
+                p_tiles.append(tile)
+                continue
+        return p_tiles
+       
+    def check_if_valid_moves_possible(self):
+        tile_values = self.get_all_player_tiles()
+        valid_move_found = False
+        for tile in tile_values:
+            value = abs(int(tile['text']))
+            moves = ArithChessLogic.all_valid_moves((ArithChessLogic.WIDTH, ArithChessLogic.HEIGHT), tile.coords, value)
+            print(len(moves))
+            if(len(moves) > 1):
+                valid_move_found = True
+                break
+        if(not valid_move_found):
+            self.current_turn = -self.current_turn
+            self.on_game_over()
             
 class Palette:
     def __init__(self, text, background, tile1, tile2, player1, player2, highlight, selected, error, panel_back, option_button):
@@ -215,6 +247,7 @@ def set_info_popup():
     RULES = ("- Player 1 controls positive numbers\n" +
         "- Player 2 controls positive numbers\n" +
         "- Capture the opponent's F piece\n" +
+        "- Or force them not be able to move\n"
         "- A piece can move sqrt(n) spaces\n" +
         "- When two pieces collide, their values sum"
         )
@@ -253,6 +286,13 @@ def toggle_show_info(event):
     set_info_popup_visibility(show_info)
     #print("r was pressed, " + str(show_info))
                        
+def check_int(s):
+    try:
+        if s[0] in ('-', '+'):
+            return s[1:].isdigit()
+        return s.isdigit()
+    except:
+        return False
 
 mixer.init()
 piece_captured_sfx = mixer.Sound(r"assets\sfx\piece_captured.wav")
