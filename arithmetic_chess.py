@@ -30,6 +30,47 @@ player1 = "Bob"
 
 board = [[0 for _ in range(WIDTH)] for _ in range(HEIGHT)]
 
+
+class _Getch:
+	"""Gets a single character from standard input.  Does not echo to the screen."""
+	def __init__(self):
+		try:
+			self.impl = _GetchWindows()
+		except ImportError:
+			self.impl = _GetchUnix()
+
+	def __call__(self): 
+		return self.impl()
+
+
+class _GetchUnix:
+	def __init__(self):
+		import tty, sys
+
+	def __call__(self):
+		import sys, tty, termios
+		fd = sys.stdin.fileno()
+		old_settings = termios.tcgetattr(fd)
+		try:
+			tty.setraw(sys.stdin.fileno())
+			ch = sys.stdin.read(1)
+		finally:
+			termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+		return ch
+
+
+class _GetchWindows:
+	def __init__(self):
+		import msvcrt
+
+	def __call__(self):
+		import msvcrt
+		return msvcrt.getch()
+
+
+getch = _Getch()
+
+
 class MoveStatus():
     def __init__(self, state, message):
         self.state = state
@@ -37,12 +78,12 @@ class MoveStatus():
         
 MOVE_WAS_SUCCESS = MoveStatus(SUCCESS, "Move was successful")
 PIECE_CAPTURED = MoveStatus(SUCCESS, "capture")
-SOURCE_OUT_OF_BOUNDS = MoveStatus(FAILURE, "Source square is out of bounds.")
-DEST_OUT_OF_BOUNDS = MoveStatus(FAILURE, "Destination square is out of bounds.")
+SOURCE_OUT_OF_BOUNDS = MoveStatus(FAILURE, "Source square is out of bounds")
+DEST_OUT_OF_BOUNDS = MoveStatus(FAILURE, "Destination square is out of bounds")
 SOURCE_EMPTY = MoveStatus(FAILURE, "Source square is empty")
 TRY_MOVE_ENEMY_PIECE = MoveStatus(FAILURE, "Cannot move enemy piece")
 TRY_MOVE_FLAG = MoveStatus(FAILURE, "Flag cannot be moved")
-MOVE_CONSTRAINT_NOT_MET = MoveStatus(FAILURE, "Euclidean movement constraint not satisfied (Invalid Move).")
+MOVE_CONSTRAINT_NOT_MET = MoveStatus(FAILURE, "Euclidean movement constraint not satisfied (Invalid Move)")
 CAPTURED_OWN_FLAG = MoveStatus(FAILURE, "You cannot capture your own flag")
 MOVE_CAUSED_GAME_OVER = MoveStatus(GAME_OVER, "Flag piece was captured")
 MOVE_CAUSED_DRAW = MoveStatus(GAME_OVER, "Neither player can move")
@@ -100,9 +141,7 @@ def format_cell(xpos : int, ypos : int, board : list[list[int]],
 def clear_screen():
 	print("\x1b[2J\x1b[3J\x1b[H",end="")
 
-def try_move(board : list[list[int]], sx : int, sy : int,
-									  dx : int, dy : int, 
-									  current_turn : int) -> MoveStatus:
+def try_move(board : list[list[int]], sx : int, sy : int, dx : int, dy : int, current_turn : int) -> MoveStatus:
 	
 	if (sy < 0 or sy >= len(board) or 
 		sx < 0 or sx >= len(board[0])):
@@ -180,8 +219,20 @@ def extract_move(arg: str) -> tuple[int, int, int]:
 	#	1.	Two numbers, separated by any number of spaces
 	#	2.	Two numbers, separated by a comma, and any number of spaces
 
+	# Quit game.
+	s = arg
+	if s == 'q' or s == 'Q' or s == 'Quit' or s == 'quit' or s == 'Exit' or s == 'exit':
+		return (0, 0, -2)
 
-	parts = [s for s in re.split(r"[\(,;\) ]+", arg) if s]
+	# Offer a draw.
+	if s == 'd' or s == 'D' or s == 'Draw' or s == 'draw':
+		return (0, 0, -3)
+
+	# Accept a draw. Can also accept a draw by offering a draw when a draw offer is active.
+	if s == '+' or s == '1' or s == 'A' or s == 'a' or s == 'Y' or s == 'y' or s == "Accept" or s == 'accept' or s == "Yes" or s == 'yes':
+		return (0, 0, -4)
+
+	parts = [a for a in re.split(r"[\(,;\) ]+", arg) if a]
 	if len(parts) != 2:
 		clear_screen()
 		print(colour_error + "Error: Invalid input format.\n\n" + colour_reset)
@@ -277,64 +328,49 @@ icD = (8, 8, [
 
 lookup = [icA, icB, icC, icD]
 
-def main():
-	debug = 1
-	clear_screen()
-	print(TITLE + "\n")
-	print("\n")
+def select_board() -> board:
+	num_boards = 4
+	selected_board = 0
 
-	print("Rules: ")
-	print(f"1. {colour_cyan}Player 1{colour_reset} controls the {colour_cyan}positive numbers (cyan).{colour_reset}")
-	print(f"   {colour_red}Player 2{colour_reset} controls the {colour_red}negative numbers (red).{colour_reset}")
-	print(f"2. The objective of the game is to capture your opponent's flag (the F piece).")
-	print(f"3. A piece with absolute value n can move to a square exactly distance sqrt(n) away.")
-	print(f"   This distance is Euclidean distance, and basically means dx^2 + dy^2 = abs(n).")
-	print(f"4. Whenever two pieces with values a and b land on the same square, they add together.")
-	print(f"   A piece with value a + b is formed.")
+	selecting = 1
 
-	print("\n")
-	print(f"{colour_cyan}Player 1{colour_reset}, please enter your name (Defaults to Alice): ", )
-	s = input()
+	while selecting == 1:
+		clear_screen()
+		board = init_board(lookup[selected_board][0], lookup[selected_board][1], lookup[selected_board][2]);
+		print_board(board, [])
 
-	if s:
-		player0 = s
-		print(f"Hello, {colour_cyan}{s}{colour_reset}!")
-	else:
-		player0 = "Alice"
+		print("\n%d / %d\n" % (selected_board + 1, num_boards))
+		print("Press A and D to select boards, or type in a number.\n")
+		print("Press P to load a board from an external file.\n")
+		print("Press <enter> to confirm.")
 
+		c = getch()
 
-	print(f"{colour_red}Player 2{colour_reset}, please enter your name (Defaults to Bob): ")
-	s = input()
-
-	if s:
-		player1 = s
-		print(f"Hi, {colour_red}{s}{colour_reset}!")
-	else:
-		player1 = "Bob"
-
-	print(f"When you're ready.\n<Press Enter key to continue...>")
-
-	s = input()
+		if c == 'D' or c == 'd':
+			selected_board = (selected_board + 1) % num_boards
+		elif c == 'A' or c == 'a':
+			selected_board = (selected_board - 1) % num_boards
+		elif c >= '0' and c <= '9':
+			print(c,end="")
+			s = input()
+			selected_board = (int(c + s) - 1) % num_boards
+		elif c <= ' ' or c == 'q' or c == 'Q':
+			selecting = 0
 
 
 	clear_screen()
-	print(TITLE + "\n\n")
-	# Load initial conditions by hand here
-	board = init_board(8, 8, icB[2])
-	if debug and s:
-		try:
-			boardid = int(s)
-			if (0 <= boardid and boardid <= 3):
-				board = init_board(*lookup[boardid])
-			else:
-				board = init_board(*icB)
-		except ValueError:
-			board = init_board(*icB)
+	return init_board(lookup[selected_board][0], lookup[selected_board][1], lookup[selected_board][2]);
+
+
+
+
+
+def game_loop(board):
 
 	boardy = len(board)
 	boardx = len(board[0])
 	current_sign = 1
-
+	draw_offer = 0
 
 
 	while True:
@@ -353,7 +389,7 @@ def main():
 
 		if player_0_can_move == 0 and player_1_can_move == 0:
 			print(colour_yellow + MOVE_CAUSED_DRAW.message + "\n\n" + colour_reset)
-			print_board(board)
+			print_board(board, [])
 			break
 
 		if player_0_can_move == 0 and current_sign == 1:
@@ -379,6 +415,41 @@ def main():
 		if status == FAILURE:
 			continue
 
+		elif status == -2:
+			print("Exiting game...")
+			break
+
+		elif status == -3:
+			if draw_offer == 0:
+				draw_offer = 1
+				if current_sign == 1:
+					print(f"\n\n{colour_cyan}{player0}{colour_reset} is offering a draw. Accept?\n")
+				else:
+					print(f"\n\n{colour_red}{player1}{colour_reset} is offering a draw. Accept?\n")
+				move = input()
+				_, _, status = extract_move(move)
+				if status == -3 or status == -4:
+					print(f"{colour_yellow}A draw is agreed!{colour_reset}")
+					break
+				else:
+					print(f"{colour_green}A draw is declined. Press any key to continue...{colour_reset}")
+					draw_offer = 0
+					continue
+
+			elif draw_offer == 1:
+				print(f"{colour_yellow}A draw is agreed!{colour_reset}\n")
+				break
+
+		elif status == -4:
+			if draw_offer == 1:
+				print(f"{colour_yellow}A draw is agreed!")
+				break
+			else:
+				print(f"There is no draw being offered. Try again later.")
+				continue
+
+
+
 		if (sy < 0 or sy >= len(board) or 
 			sx < 0 or sx >= len(board[0])):
 			clear_screen()
@@ -392,7 +463,7 @@ def main():
 
 		if board[sy][sx] * current_sign < 0:
 			clear_screen()
-			print(colour_error + TRY_MOVE_ENEMY_PIECE.message +                                                                                               "\n\n" + colour_reset)
+			print(colour_error + TRY_MOVE_ENEMY_PIECE.message + "\n\n" + colour_reset)
 			continue
 
 		x = board[sy][sx]
@@ -447,20 +518,6 @@ def main():
 				print(f"{colour_cyan}{player0}{colour_reset} wins!")
 			else:
 				print(f"{colour_red}{player1}{colour_reset} wins!")
-			s = input("Another game?")
-			c = str(s[0]) if s else 0 
-
-			if (c in "+1TtYy"): 
-				...
-			elif (c in "Rr"):
-				main()
-				break
-			elif (c in "Dd"):
-				debug = 1
-				main()
-				break
-			else:
-				break
 			
 		elif result.state == FAILURE:
 			print(result.message)
@@ -469,8 +526,70 @@ def main():
 		clear_screen()
 		print(TITLE + "\n\n")
 
-
+		draw_offer = 0
 		current_sign *= -1
+
+
+def main():
+	debug = 1
+	clear_screen()
+	print(TITLE + "\n")
+	print("\n")
+
+	print("Rules: ")
+	print(f"1. {colour_cyan}Player 1{colour_reset} controls the {colour_cyan}positive numbers (cyan).{colour_reset}")
+	print(f"   {colour_red}Player 2{colour_reset} controls the {colour_red}negative numbers (red).{colour_reset}")
+	print(f"2. The objective of the game is to capture your opponent's flag (the F piece).")
+	print(f"3. A piece with absolute value n can move to a square exactly distance sqrt(n) away.")
+	print(f"   This distance is Euclidean distance, and basically means dx^2 + dy^2 = abs(n).")
+	print(f"4. Whenever two pieces with values a and b land on the same square, they add together.")
+	print(f"   A piece with value a + b is formed.")
+
+	print("\n")
+	print(f"{colour_cyan}Player 1{colour_reset}, please enter your name (Defaults to Alice): ", )
+	s = input()
+
+	if s:
+		player0 = s
+		print(f"Hello, {colour_cyan}{s}{colour_reset}!")
+	else:
+		player0 = "Alice"
+
+
+	print(f"{colour_red}Player 2{colour_reset}, please enter your name (Defaults to Bob): ")
+	s = input()
+
+	if s:
+		player1 = s
+		print(f"Hi, {colour_red}{s}{colour_reset}!")
+	else:
+		player1 = "Bob"
+
+	print(f"When you're ready.\n<Press Enter key to continue...>")
+
+	s = input()
+
+
+	clear_screen()
+	print(TITLE + "\n\n")
+	# Load initial conditions by hand here
+	board = init_board(8, 8, icB[2])
+	if debug and s:
+		try:
+			boardid = int(s)
+			if (0 <= boardid and boardid <= 3):
+				board = init_board(*lookup[boardid])
+			else:
+				board = init_board(*icB)
+		except ValueError:
+			board = init_board(*icB)
+
+	playing = 1
+
+	while playing == 1:
+		board = select_board()
+		playing = game_loop(board)
+		
 
 
 
