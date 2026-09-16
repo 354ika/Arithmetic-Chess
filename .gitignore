@@ -1,0 +1,7 @@
+*.*
+!*.py
+!*.txt
+test*
+!.gitignore
+!*assets/*
+__pycache__/

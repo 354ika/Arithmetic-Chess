@@ -1,6 +1,7 @@
 import arithmetic_chess as ArithChessLogic
 from os import system
 from tkinter import *
+from tkinter import filedialog
 try:
     from pygame import mixer
 except:
@@ -18,8 +19,22 @@ class GameBoard:
         self.dest_tile = None
         self.current_turn = 1
         self.enable_move = False
-             
-    def init_board(self, ic = ArithChessLogic.icB[2]):
+
+    '''
+    Creates the menu bar for the GUI
+    Contains:
+    - Load option - to load a configuration file
+    - Save option - to save the current board state to a configuration file
+    '''
+    def create_menu_bar(self, root): 
+        menu_bar = Menu(root) 
+        file_menu = Menu(menu_bar, tearoff=0) 
+        file_menu.add_command( label="Load", command=self.load_configuration_file ) 
+        file_menu.add_command( label="Save", command=self.save_configuration_file ) 
+        menu_bar.add_cascade( label="File", menu=file_menu ) 
+        root.config(menu=menu_bar)
+
+    def init_board(self, ic = ArithChessLogic.icD[2]):
         reset_board_sfx.play()
         self.deselect_tiles
         self.destroy_tiles()
@@ -32,7 +47,48 @@ class GameBoard:
         self.current_turn = 1    
         self.enable_move = True
         self.update_turn_label(False)        
-                
+
+    def load_configuration_file(self): 
+        filename = filedialog.askopenfilename( 
+            title="Load Configuration", 
+            filetypes=[ 
+                ("Configuration files", "*.txt"), 
+                ("All files", "*.*") 
+            ] 
+        ) 
+        if not filename: 
+            return 
+        try: 
+            board = ArithChessLogic.load_configuration(filename) 
+            game_board.board = board 
+            # Recreate the tiles in case the loaded board has 
+            # different dimensions 
+            game_board.destroy_tiles() 
+            for x in range(len(board)): 
+                for y in range(len(board[0])): 
+                    new_tile = Tile(x, y) 
+                    new_tile.format() 
+                    game_board.board_tiles.append(new_tile) 
+            game_board.current_turn = 1 
+            game_board.enable_move = True 
+            game_board.deselect_tiles() 
+            game_board.update_turn_label(False) 
+        except Exception as e: 
+            print(f"Error loading configuration: {e}")
+
+    def save_configuration_file(self): 
+        filename = filedialog.asksaveasfilename( 
+            title="Save Configuration", 
+            defaultextension=".txt", 
+            filetypes=[ 
+                ("Configuration files", "*.txt"), 
+                ("All files", "*.*") 
+            ] 
+        ) 
+        if not filename: 
+            return 
+        ArithChessLogic.save_configuration(filename, game_board.board)
+
     def load_board_state(self, board : list[list[int]], valid_moves : list[tuple[int, int]]):
         self.board = board
         self.valid_moves = valid_moves
@@ -295,11 +351,11 @@ def check_int(s):
         return False
 
 mixer.init()
-piece_captured_sfx = mixer.Sound(r"assets\sfx\piece_captured.wav")
-piece_placed_sfx = mixer.Sound(r"assets\sfx\piece_placed.wav")
-invalid_move_sfx = mixer.Sound(r"assets\sfx\invalid_move.wav")
-reset_board_sfx = mixer.Sound(r"assets\sfx\reset_board.wav")
-game_over_sfx = mixer.Sound(r"assets\sfx\game_over.wav")
+piece_captured_sfx = mixer.Sound(r"assets/sfx/piece_captured.wav")
+piece_placed_sfx = mixer.Sound(r"assets/sfx/piece_placed.wav")
+invalid_move_sfx = mixer.Sound(r"assets/sfx/invalid_move.wav")
+reset_board_sfx = mixer.Sound(r"assets/sfx/reset_board.wav")
+game_over_sfx = mixer.Sound(r"assets/sfx/game_over.wav")
 
 palette = Palette(
     text = "black", 
@@ -341,6 +397,7 @@ show_rules_button = OptionButton(0, "Show Rules", command = lambda: toggle_show_
 reset_board_button = OptionButton(1, "Reset Board",  command = game_board.init_board)
 
 if __name__ == "__main__":
+    
     root.configure(bg = palette.background)
     root.title(ArithChessLogic.TITLE)
     root.resizable(width=False, height=False)
@@ -348,8 +405,11 @@ if __name__ == "__main__":
     root.bind('r', toggle_show_info)
     root.bind('R', toggle_show_info)
     set_title_label()
+
+
     game_board.init_board()
-    
+    game_board.create_menu_bar(root)
+
     board_frame.grid(row = 1, column = 0, padx = WIN_WIDTH / 4)
     player_action_label.grid(row = 2, column = 0)
     move_error_label.grid(row = 3, column = 0)
@@ -357,5 +417,8 @@ if __name__ == "__main__":
 
     set_info_popup()
     set_info_popup_visibility(True)
+
+    game_board.load_configuration_file()
+    
     root.mainloop()
     

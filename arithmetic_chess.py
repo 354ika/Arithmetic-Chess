@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import re
 from os import system
+import tkinter as tk
+from tkinter import filedialog as fd
 # ensures ansi chars work on windows cmd line
 system("")
 
@@ -115,6 +117,71 @@ def init_board(width : int, height : int, ic : list[tuple[int, int, int]]) -> li
 
 def create_board(width : int, height : int) -> list[list[int]]:
 	return [[0 for _ in range(width)] for _ in range(height)]
+
+
+def load_configuration(filename: str):
+    try:
+        with open(filename, "r") as f:
+            lines = f.readlines()
+    except Exception as e:
+        print(f"Error loading configuration file: {e}")
+        return create_board(WIDTH, HEIGHT)
+
+    try:
+        # First line contains board width and height
+        width, height = map(int, lines[0].split())
+
+        b = create_board(width, height)
+
+        # Remaining lines contain x, y, value
+        for line in lines[1:]:
+            line = line.strip()
+
+            if not line or line.startswith("#"):
+                continue
+            try:
+                x, y, value = line.split()
+                if value == "FLAG":
+                    value = FLAG
+                elif value == "-FLAG":
+                    value = -FLAG
+                else:
+                    value = int(value)
+
+                b[int(y)][int(x)] = value
+
+            except Exception as e:
+                print(f"Error parsing line '{line}': {e}")
+        return b
+    except Exception as e:
+        print(f"Error parsing board dimensions: {e}")
+        return create_board(WIDTH, HEIGHT)
+
+
+def save_configuration(filename: str, board: list[list[int]]):
+    try:
+        with open(filename, "w") as f:
+            # Save board dimensions first
+            height = len(board)
+            width = len(board[0])
+
+            f.write(f"{width} {height}\n")
+
+            # Save non-zero cells
+            for y in range(height):
+                for x in range(width):
+                    if board[y][x] != 0:
+                        value = board[y][x]
+                        if value == FLAG:
+                            value = "FLAG"
+                        elif value == -FLAG:
+                            value = "-FLAG"
+                        f.write(f"{x} {y} {value}\n")
+
+    except Exception as e:
+        print(f"Error saving configuration file: {e}")
+
+
 
 def format_cell(xpos : int, ypos : int, board : list[list[int]],
 				valid_moves : list[tuple[int, int]]) -> str:
