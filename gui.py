@@ -408,7 +408,6 @@ if __name__ == "__main__":
 
 
     game_board.init_board()
-    
     game_board.create_menu_bar(root)
 
     board_frame.grid(row = 1, column = 0, padx = WIN_WIDTH / 4)
@@ -418,5 +417,8 @@ if __name__ == "__main__":
 
     set_info_popup()
     set_info_popup_visibility(True)
+
+    game_board.load_configuration_file()
+    
     root.mainloop()
     
