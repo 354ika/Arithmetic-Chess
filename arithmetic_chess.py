@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import re
 from os import system
+import time
 import tkinter as tk
 from tkinter import filedialog as fd
 # ensures ansi chars work on windows cmd line
@@ -13,7 +14,7 @@ WIDTH = 8
 HEIGHT = 8
 FLAG = 2**63 - 1
 CELL_WIDTH = 4
-SHOW_ZERO = 0
+SHOW_ZERO = False
 
 GAME_OVER = 1
 SUCCESS = 0
@@ -198,9 +199,7 @@ def format_cell(xpos : int, ypos : int, board : list[list[int]],
 	strval = ""
 	can_move = not (all_valid_moves((len(board[0]), len(board)), (xpos, ypos), abs(value)) == [])
 
-	if (xpos, ypos) in valid_moves:
-		colour = colour_highlight
-	elif (value > 0):
+	if (value > 0):
 		if (can_move):
 			colour = colour_cyan + colour_bold
 		else:
@@ -214,14 +213,18 @@ def format_cell(xpos : int, ypos : int, board : list[list[int]],
 			colour = colour_dimred
 
 		strval = str(value).rjust(CELL_WIDTH)
-	elif (value == 0):
+	elif value == 0 and SHOW_ZERO == False:
 		strval = ".".rjust(CELL_WIDTH) + colour_reset
+	elif value == 0 and SHOW_ZERO == True:
+		strval = "0".rjust(CELL_WIDTH) + colour_reset
 
 	if (value == FLAG):
 		strval = "F".rjust(CELL_WIDTH)
 	if (value == -FLAG):
 		strval = "-F".rjust(CELL_WIDTH)
 
+	if (xpos, ypos) in valid_moves:
+		colour = colour_highlight
 
 
 	return colour + strval + colour_reset
@@ -520,39 +523,62 @@ ic7 = (16, 16, b7)
 
 lookup = [ic0, ic1, ic2, ic3, ic4, ic5, ic6, ic7]
 
-def select_board() -> board:
+def select_board() -> board | None:
 	num_boards = len(lookup)
 	selected_board = 0
 
+	custom_board = 0; custom = 0
 	selecting = 1
 
 	while selecting == 1:
 		clear_screen()
 		board = init_board(lookup[selected_board][0], lookup[selected_board][1], lookup[selected_board][2]);
-		print_board(board, [])
+		if custom == 0:
+			print_board(board, [])
+		else:
+			print_board(custom_board, [])
 
 		print("\n%d / %d\n" % (selected_board + 1, num_boards))
-		print("Press A and D to select boards, or type in a number.\n")
+		print("Press A (previous) and D (next) to select boards, or type in a number.\n")
 		print("Press P to load a board from an external file.\n")
+		print("Press B or Q to go back.\n")
 		print("Press <enter> to confirm.")
 
 		c = getch()
 
 		if c == 'D' or c == 'd':
 			selected_board = (selected_board + 1) % num_boards
+			custom = 0
 		elif c == 'A' or c == 'a':
 			selected_board = (selected_board - 1) % num_boards
+			custom = 0
 		elif c >= '0' and c <= '9':
 			print(c,end="")
 			s = input()
 			selected_board = (int(c + s) - 1) % num_boards
-		elif c <= ' ' or c == 'q' or c == 'Q':
+			custom = 0
+
+		# Try to open a file and read in a config
+		elif c == 'p' or c == 'P':
+			print("\nEnter the name of the config file... ",end="")
+			s = input()
+			custom_board = load_configuration(s)
+			custom = 1
+			selected_board = -1
+
+		elif c <= ' ':
 			selecting = 0
+
+		elif c == 'B' or c == 'b' or c == 'Q' or c == 'q':
+			return None
+
 
 
 	clear_screen()
-	return init_board(lookup[selected_board][0], lookup[selected_board][1], lookup[selected_board][2]);
-
+	if (custom == 0):
+		return init_board(lookup[selected_board][0], lookup[selected_board][1], lookup[selected_board][2]);
+	else:
+		return custom_board
 
 
 
@@ -721,6 +747,146 @@ def game_loop(board):
 		draw_offer = 0
 		current_sign *= -1
 
+def editor():
+	clear_screen()
+	print("How large should the board be? ", end="")
+	
+	fail = 1; x = 0; y = 0;
+
+	while fail != 0:
+		try:
+			x, y = map(int, input().split())
+			
+			if x < 0 or y < 0:
+				print("I have yet to see a negative sized board, perhaps you can enlighten us? ", end="")
+			fail = 0
+		except Exception:
+			print("But that doesn't type check... ", end="")
+
+	board = init_board(x, y, [])
+
+	# edit mode.
+	# 1 = edit menu
+	# 2 = add pieces
+	# 3 = save
+	edit = 1
+	lasterror = None
+
+	while edit > 0:
+		clear_screen()
+		print("Arithmetic chess board editor\n")
+
+		print(f"Current board dimensions: {y} rows, {x} columns")
+
+		print_board(board, [])
+		print()
+
+		if (edit == 1):
+			print(f"0: back\n1: edit board\n2: save board")
+
+			try:
+				c = int(getch())
+			except Exception:
+				continue
+
+			if c == 0:
+				break
+
+			elif c == 1:
+				edit = 2
+				continue
+
+			elif c == 2:
+				edit = 3
+				continue
+
+		elif (edit == 2):
+			print("Enter the input as a triple (x, y, value). For flags, use F or -F.")
+			print("<Enter>: finish")
+
+			if (lasterror):
+				print(lasterror)
+
+			c = getch()
+
+			if c < ' ':
+				edit = 1
+				continue
+
+			else:
+				print(c, end="")
+				s = c + input()
+
+				parts = [a for a in re.split(r"[\(,;\) ]+", s) if a]
+				if (len(parts) != 3):
+					lasterror = colour_red + "Error: Specify a triple to place a piece." + colour_reset
+					continue
+
+				x1 = 0; y1 = 0; value = 0;
+				try:
+					x1, y1 = map(int, [parts[0], parts[1]])
+				except:
+					lasterror = colour_red + "Error: Invalid location." + colour_reset
+
+				if x1 < 0 or x1 >= x or y1 < 0 or y1 >= y:
+					lasterror = colour_red + "Error: Placement out of bounds." + colour_reset
+					continue
+
+				if parts[2] == 'F':
+					value = FLAG
+				elif parts[2] == '-F':
+					value = -FLAG
+				else:
+					try:
+						value = int(parts[2])
+					except Exception:
+						value = 0
+
+				board[y1][x1] = value
+
+
+				lasterror = None
+
+		elif (edit == 3):
+			print("Save to... ", end="")
+			s = input()
+
+			save_configuration(s, board)
+			edit = 1
+
+
+
+	return
+
+def settings():
+
+	loop = 1
+	global SHOW_ZERO, player0, player1
+
+	while loop:
+		clear_screen()
+		print(f"0: exit")
+		print(f"1: Show zero values: {SHOW_ZERO}")
+		print(f"2: Player 1 name: {colour_cyan}{player0}{colour_reset}")
+		print(f"3: Player 2 name: {colour_red}{player1}{colour_reset}")
+
+		try:
+			c = int(getch())
+		except Exception:
+			c = 0
+
+		if c == 0:
+			loop = 0
+		elif c == 1:
+			SHOW_ZERO = not SHOW_ZERO
+		elif c == 2:
+			print("\nEnter new name: ", end="")
+			player0 = input()
+		elif c == 3:
+			print("\nEnter new name: ", end="")
+			player1 = input()
+
+	return
 
 def main():
 	debug = 1
@@ -761,16 +927,65 @@ def main():
 
 	s = input()
 
-
-	clear_screen()
-	print(TITLE + "\n\n")
-
+	e = None
 	playing = 1
 
 	while playing == 1:
-		board = select_board()
-		playing = game_loop(board)
-		
+		clear_screen()
+		print(TITLE + "\n")
+
+		if e:
+			print(e)
+
+		print(f"Welcome, {colour_cyan}{player0}{colour_reset} and {colour_red}{player1}{colour_reset}.\n")
+		print("0: exit game\n1: select board\n2: board editor\n3: settings\n4: rules")
+
+		try:
+			c = int(getch())
+		except Exception:
+			continue
+
+		if (c == 0):
+			break
+
+		elif (c == 1):
+			board = select_board()
+			if (board == None):
+				continue
+
+			game_loop(board)
+			
+			print("<Press any key to continue...>\n")
+			getch()
+
+		elif (c == 2):
+			editor()
+
+		elif (c == 3):
+			settings()
+
+		elif (c == 4):
+			clear_screen()
+			print(colour_underline + "I already told you all the rules, were you paying attention?\n" + colour_reset)
+			time.sleep(3)
+			print("*sigh*... I guess I'll do it again...\n")
+			time.sleep(2)
+
+			print("Rules: ")
+			print(f"1. {colour_cyan}{player0}{colour_reset} controls the {colour_cyan}positive numbers (cyan).{colour_reset}")
+			print(f"   {colour_red}{player1}{colour_reset} controls the {colour_red}negative numbers (red).{colour_reset}")
+			print(f"2. The objective of the game is to capture your opponent's flag (the F piece).")
+			print(f"3. A piece with absolute value n can move to a square exactly distance sqrt(n) away.")
+			print(f"   This distance is Euclidean distance, and basically means dx^2 + dy^2 = abs(n).")
+			print(f"4. Whenever two pieces with values a and b land on the same square, they add together.")
+			print(f"   A piece with value a + b is formed.")
+
+			time.sleep(30)
+			print("\n\n<Press any key to continue...>\n")
+			getch()
+
+
+	return -1
 
 
 
