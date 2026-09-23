@@ -6,13 +6,14 @@ from tkinter import filedialog as fd
 # ensures ansi chars work on windows cmd line
 system("")
 
-VERSION_NUMBER = 0.5
+VERSION_NUMBER = 0.7
 TITLE = "Arithmetic Chess v" + str(VERSION_NUMBER)
 
 WIDTH = 8
 HEIGHT = 8
 FLAG = 2**63 - 1
 CELL_WIDTH = 4
+SHOW_ZERO = 0
 
 GAME_OVER = 1
 SUCCESS = 0
@@ -26,6 +27,12 @@ colour_yellow = "\x1b[1;93m"
 colour_cyan = "\x1b[96m"
 colour_reset = "\x1b[0m"
 colour_dark = "\x1b[90m"
+
+colour_bold = "\x1b[1m"
+colour_dim = "\x1b[2m"
+colour_underline = "\x1b[4m"
+colour_dimcyan = "\x1b[36m"
+colour_dimred = "\x1b[31m"
 
 player0 = "Alice"
 player1 = "Bob"
@@ -187,23 +194,40 @@ def format_cell(xpos : int, ypos : int, board : list[list[int]],
 				valid_moves : list[tuple[int, int]]) -> str:
 	value = board[ypos][xpos]
 
-	if ((xpos, ypos) in valid_moves and abs(value) == FLAG):
-		return colour_highlight + "F".rjust(CELL_WIDTH) + colour_reset
-	elif ((xpos, ypos) in valid_moves and value != 0):
-		return colour_highlight + str(value).rjust(CELL_WIDTH) + colour_reset
-	elif ((xpos, ypos) in valid_moves and value == 0):
-		return colour_highlight + ".".rjust(CELL_WIDTH) + colour_reset
-	elif value == 0:
-		return colour_dark + ".".rjust(CELL_WIDTH) + colour_reset
-	elif value == FLAG:
-		return colour_cyan + "F".rjust(CELL_WIDTH) + colour_reset
-	elif value == -FLAG:
-		return colour_red + "-F".rjust(CELL_WIDTH) + colour_reset
+	colour = colour_dark
+	strval = ""
+	can_move = not (all_valid_moves((len(board[0]), len(board)), (xpos, ypos), abs(value)) == [])
 
-	if value > 0:
-		return colour_cyan + str(value).rjust(CELL_WIDTH) + colour_reset
-	if value < 0:
-		return colour_red + str(value).rjust(CELL_WIDTH) + colour_reset
+	if (xpos, ypos) in valid_moves:
+		colour = colour_highlight
+	elif (value > 0):
+		if (can_move):
+			colour = colour_cyan + colour_bold
+		else:
+			colour = colour_dimcyan
+
+		strval = str(value).rjust(CELL_WIDTH)
+	elif (value < 0):
+		if (can_move):
+			colour = colour_red + colour_bold
+		else:
+			colour = colour_dimred
+
+		strval = str(value).rjust(CELL_WIDTH)
+	elif (value == 0):
+		strval = ".".rjust(CELL_WIDTH) + colour_reset
+
+	if (value == FLAG):
+		strval = "F".rjust(CELL_WIDTH)
+	if (value == -FLAG):
+		strval = "-F".rjust(CELL_WIDTH)
+
+
+
+	return colour + strval + colour_reset
+
+
+
 
 def clear_screen():
 	print("\x1b[2J\x1b[3J\x1b[H",end="")
@@ -314,28 +338,59 @@ def extract_move(arg: str) -> tuple[int, int, int]:
 	
 	return (x, y, SUCCESS)
 
-icA = (8, 8, [
+FLAG = 2**63 - 1
+
+ic0 = (4, 4, [
 	(0, 0, FLAG),
-	(1, 1, 4),
-	(6, 6, -4),
-	(7, 7, -FLAG),
+	(1, 0, 1),
+	(2, 0, 2),
+	(0, 1, 1),
+
+	(3, 2, -1),
+	(1, 3, -2),
+	(2, 3, -1),
+	(3, 3, -FLAG),
 ])
 
-icB = (8, 8, [
+ic1 = (6, 6, [
 	(0, 0, FLAG),
 	(1, 0, 5),
 	(2, 0, 2),
+	(3, 0, 1),
+	(0, 1, 2),
+	(1, 1, 4),
+	(2, 1, 1),
+	(3, 1, 1),
+
+	(5, 4, -2),
+	(4, 4, -4),
+	(3, 4, -1),
+	(2, 4, -1),
+	(5, 5, -FLAG),	
+	(4, 5, -5),
+	(3, 5, -2),
+	(2, 5, -1)
+])
+
+
+
+ic2 = (8, 8, [
+	(0, 0, FLAG),
+	(1, 0, 5),
+	(2, 0, 2),
+	(0, 1, 3),
 	(1, 1, 4),
 	(2, 1, 1),
 
 	(5, 6, -1),
 	(6, 6, -4),
+	(7, 6, -3),
 	(5, 7, -2),
 	(6, 7, -5),
 	(7, 7, -FLAG)
 ])
 
-icC = (8, 8, [
+ic3 = (8, 8, [
 	(0, 0, 4),
 	(1, 0, 5),
 	(2, 0, 8),
@@ -371,7 +426,7 @@ icC = (8, 8, [
 	(7, 7, -4)
 ])
 
-icD = (8, 8, [
+ic4 = (8, 8, [
 	(0, 0, FLAG),
 	(1, 0, 5),
 	(2, 0, 2),
@@ -393,10 +448,80 @@ icD = (8, 8, [
 	(7, 7, -FLAG)
 ])
 
-lookup = [icA, icB, icC, icD]
+ic5 = (16, 16, [
+	(0, 0, FLAG),
+
+	(1, 0, 1),
+	(0, 1, 1),
+	(1, 1, 2),
+	(2, 0, 4),
+	(0, 2, 4),
+	(2, 1, 5),
+	(1, 2, 5),
+	(2, 2, 8),
+	(3, 0, 9),
+	(0, 3, 9),
+	(3, 1, 10),
+	(1, 3, 10),
+	(3, 2, 13),
+	(2, 3, 13),
+	(4, 0, 16),
+	(0, 4, 16),
+	(4, 1, 17),
+	(1, 4, 17),
+	(3, 3, 18),
+	(4, 2, 20),
+	(2, 4, 20),
+	(5, 0, 25),
+	(4, 3, 25),
+	(3, 4, 25),
+	(0, 5, 25),
+
+	(14, 15, -1),
+	(15, 14, -1),
+	(14, 14, -2),
+	(13, 15, -4),
+	(15, 13, -4),
+	(13, 14, -5),
+	(14, 13, -5),
+	(13, 13, -8),
+	(12, 15, -9),
+	(15, 12, -9),
+	(12, 14, -10),
+	(14, 12, -10),
+	(12, 13, -13),
+	(13, 12, -13),
+	(11, 15, -16),
+	(15, 11, -16),
+	(11, 14, -17),
+	(14, 11, -17),
+	(12, 12, -18),
+	(11, 13, -20),
+	(13, 11, -20),
+	(10, 15, -25),
+	(11, 12, -25),
+	(12, 11, -25),
+	(15, 10, -25),
+
+	(15, 15, -FLAG)
+])
+
+b6 = [(a, 0, a) for a in range(0, 16)]
+b6.extend([15 - a, 15, -a] for a in range(0, 16))
+b6.extend([(0, 0, FLAG), (15, 15, -FLAG)])
+
+ic6 = (16, 16, b6)
+
+b7 = [(a, b, 16*b + a) for b in range(0, 2) for a in range(0, 16)]
+b7.extend([(15-a, 15-b, -(16*b + a)) for b in range(0, 2) for a in range(0, 16)])
+b7.extend([(0, 0, FLAG), (15, 15, -FLAG)])
+
+ic7 = (16, 16, b7)
+
+lookup = [ic0, ic1, ic2, ic3, ic4, ic5, ic6, ic7]
 
 def select_board() -> board:
-	num_boards = 4
+	num_boards = len(lookup)
 	selected_board = 0
 
 	selecting = 1
@@ -460,12 +585,12 @@ def game_loop(board):
 			break
 
 		if player_0_can_move == 0 and current_sign == 1:
-			print(colour_yellow + player0 + "cannot move!\n\n" + colour_reset)
+			print(colour_yellow + player0 + " cannot move!\n\n" + colour_reset)
 			current_sign *= -1
 			continue
 
 		if player_1_can_move == 0 and current_sign == -1:
-			print(colour_yellow + player1 + "cannot move!\n\n" + colour_reset)
+			print(colour_yellow + player1 + " cannot move!\n\n" + colour_reset)
 			current_sign *= -1
 			continue
 				
@@ -572,7 +697,7 @@ def game_loop(board):
 
 		if y == FLAG * current_sign:
 			clear_screen()
-			print(colour_error + CAPTURED_OWN_FLAG + "\n\n" + colour_reset)
+			print(colour_error + CAPTURED_OWN_FLAG.message + "\n\n" + colour_reset)
 			continue
 
 
@@ -639,17 +764,6 @@ def main():
 
 	clear_screen()
 	print(TITLE + "\n\n")
-	# Load initial conditions by hand here
-	board = init_board(8, 8, icB[2])
-	if debug and s:
-		try:
-			boardid = int(s)
-			if (0 <= boardid and boardid <= 3):
-				board = init_board(*lookup[boardid])
-			else:
-				board = init_board(*icB)
-		except ValueError:
-			board = init_board(*icB)
 
 	playing = 1
 

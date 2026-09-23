@@ -34,7 +34,7 @@ class GameBoard:
         menu_bar.add_cascade( label="File", menu=file_menu ) 
         root.config(menu=menu_bar)
 
-    def init_board(self, ic = ArithChessLogic.icD[2]):
+    def init_board(self, ic = ArithChessLogic.ic4[2]):
         reset_board_sfx.play()
         self.deselect_tiles
         self.destroy_tiles()
